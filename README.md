@@ -133,3 +133,38 @@ If you find this code useful for your research, please cite our paper.
 
 ## Contact
 If you have any question, please feel free to contact us. E-mail: [jiangding@whu.edu.cn](mailto:jiangding@whu.edu.cn), [yemang@whu.edu.cn](mailto:yemang@whu.edu.cn).
+
+## Deployment (ONNX & TensorRT)
+
+이 프로젝트는 Triton Inference Server를 통한 배포를 지원합니다.
+다음 단계를 통해 PyTorch 모델을 ONNX 및 TensorRT 엔진(Plan)으로 변환하고 배포할 수 있습니다.
+
+### 1. ONNX 변환 (Export ONNX)
+각 데이터셋별로 학습된 PyTorch 모델(.pth)을 ONNX 형식으로 변환합니다.
+```bash
+python export_onnx_cuhk.py  # CUHK-PEDES
+python export_onnx_icfg.py  # ICFG-PEDES
+python export_onnx_rstp.py  # RSTPReid
+```
+이 스크립트는 이미지 인코더와 텍스트 인코더를 각각 분리하여 내보냅니다.
+
+### 2. TensorRT 엔진 빌드 (Build Engine)
+변환된 ONNX 모델을 NVIDIA TensorRT 엔진(.plan)으로 최적화 및 변환합니다.
+`trtexec`를 사용하며, Docker 환경에서 실행됩니다.
+```bash
+./build_engine.sh
+```
+이 스크립트는 FP16 정밀도를 사용하여 엔진을 빌드합니다.
+
+### 3. 모델 배포 (Deploy Models)
+생성된 Plan 파일을 Triton Server가 읽을 수 있는 구조(`model_repository`)로 배치하고 `config.pbtxt`를 생성합니다.
+```bash
+python script/deploy_models.py
+```
+
+### 4. Triton Server 실행
+Docker Compose를 사용하여 Triton Inference Server를 실행합니다.
+```bash
+docker compose up -d
+```
+서버가 실행되면 `localhost:8000` (HTTP) 및 `localhost:8001` (GRPC) 포트를 통해 추론 요청을 보낼 수 있습니다.
