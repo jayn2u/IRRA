@@ -1,0 +1,7 @@
+__pycache__
+*.onnx
+*.pth
+*.plan
+
+train_log.txt
+configs.yaml

@@ -1,0 +1,18 @@
+default_model_filename: "irra_cuhk_text_encoder.plan"
+name: "irra_cuhk_text_encoder"
+platform: "tensorrt_plan"
+max_batch_size: 32
+input [
+  {
+    name: "text"
+    data_type: TYPE_INT64
+    dims: [ 77 ]
+  }
+]
+output [
+  {
+    name: "text_embeddings"
+    data_type: TYPE_FP32
+    dims: [ 512 ]
+  }
+]
