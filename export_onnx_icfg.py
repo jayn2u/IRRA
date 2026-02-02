@@ -29,7 +29,7 @@ def export_onnx_icfg():
     
     batch_size = 1
     # Use float16 for dummy image since model is FP16
-    dummy_image = torch.randn(batch_size, 3, 384, 128, dtype=torch.float16).to(device)
+    dummy_image = torch.randn(batch_size, 3, 384, 128, dtype=torch.float32).to(device)
     dummy_text = torch.randint(0, 49408, (batch_size, 77), dtype=torch.int32).to(device)
 
     output_dir = "/home/jayn2u/IRRA/irra_icfg"
