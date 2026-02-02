@@ -55,7 +55,7 @@ def export_onnx_rstp():
             opset_version=17,
             do_constant_folding=True,
             input_names=['image'],
-            output_names=['image_embeddings'],
+            output_names=['image_features'],
             dynamic_axes={'image': {0: 'batch_size'}, 'image_features': {0: 'batch_size'}}
         )
         print(f"Success: Image Encoder exported to {img_onnx_path}")
@@ -83,7 +83,7 @@ def export_onnx_rstp():
             opset_version=17,
             do_constant_folding=True,
             input_names=['text'],
-            output_names=['text_embeddings'],
+            output_names=['text_features'],
             dynamic_axes={'text': {0: 'batch_size'}, 'text_features': {0: 'batch_size'}}
         )
         print(f"Success: Text Encoder exported to {txt_onnx_path}")

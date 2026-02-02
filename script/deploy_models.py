@@ -24,7 +24,7 @@ input [
 ]
 output [
   {{
-    name: "image_embeddings"
+    name: "image_features"
     data_type: TYPE_FP32
     dims: [ 512 ]
   }}
@@ -42,7 +42,7 @@ input [
 ]
 output [
   {{
-    name: "text_embeddings"
+    name: "text_features"
     data_type: TYPE_FP32
     dims: [ 512 ]
   }}
