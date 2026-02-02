@@ -56,7 +56,7 @@ def export_onnx_rstp():
             do_constant_folding=True,
             input_names=['image'],
             output_names=['image_embeddings'],
-            dynamic_axes={'image': {0: 'batch_size'}, 'image_embeddings': {0: 'batch_size'}}
+            dynamic_axes={'image': {0: 'batch_size'}, 'image_features': {0: 'batch_size'}}
         )
         print(f"Success: Image Encoder exported to {img_onnx_path}")
     except Exception as e:
@@ -84,7 +84,7 @@ def export_onnx_rstp():
             do_constant_folding=True,
             input_names=['text'],
             output_names=['text_embeddings'],
-            dynamic_axes={'text': {0: 'batch_size'}, 'text_embeddings': {0: 'batch_size'}}
+            dynamic_axes={'text': {0: 'batch_size'}, 'text_features': {0: 'batch_size'}}
         )
         print(f"Success: Text Encoder exported to {txt_onnx_path}")
     except Exception as e:
