@@ -5,7 +5,7 @@ max_batch_size: 32
 input [
   {
     name: "text"
-    data_type: TYPE_INT64
+    data_type: TYPE_INT32
     dims: [ 77 ]
   }
 ]

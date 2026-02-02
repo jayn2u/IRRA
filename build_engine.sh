@@ -33,17 +33,18 @@ build_model() {
     echo "PLAN: ${plan_path}"
     echo "=================================================="
 
-    # Determine shapes based on input type
+    set -f
+    
     if [[ "$input_name" == "image" ]]; then
-        # Image: [Batch, 3, 384, 128]
         MIN_SHAPE="image:1x3x384x128"
         OPT_SHAPE="image:16x3x384x128"
         MAX_SHAPE="image:32x3x384x128"
+        EXTRA_FLAGS="--fp16 --outputIOFormats=fp32:chw"
     else
-        # Text: [Batch, 77]
         MIN_SHAPE="text:1x77"
         OPT_SHAPE="text:16x77"
         MAX_SHAPE="text:32x77"
+        EXTRA_FLAGS="--fp16 --inputIOFormats=int32:chw --outputIOFormats=fp32:chw"
     fi
 
     # Run trtexec inside docker
@@ -54,11 +55,13 @@ build_model() {
         trtexec \
         --onnx=${onnx_path} \
         --saveEngine=${plan_path} \
-        --fp16 \
+        ${EXTRA_FLAGS} \
         --minShapes=${MIN_SHAPE} \
         --optShapes=${OPT_SHAPE} \
         --maxShapes=${MAX_SHAPE} \
         --verbose
+    
+    set +f
 }
 
 # 1. CUHK-PEDES
