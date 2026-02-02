@@ -1,7 +1,16 @@
 #!/bin/bash
 
 # Configuration
-DOCKER_IMAGE="nvcr.io/nvidia/tensorrt:25.12-py3"
+# Load .env variables
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
+# Ensure DOCKER_IMAGE is set
+if [ -z "$DOCKER_IMAGE" ]; then
+    echo "Error: DOCKER_IMAGE is not set in .env"
+    exit 1
+fi
 WORKSPACE_DIR=$(pwd)
 CONTAINER_WORKSPACE="/workspace"
 

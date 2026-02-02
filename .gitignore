@@ -7,3 +7,5 @@ train_log.txt
 configs.yaml
 
 RSTPReid/
+
+.env
