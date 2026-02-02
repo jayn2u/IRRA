@@ -6,7 +6,7 @@ input [
   {
     name: "image"
     data_type: TYPE_FP16
-    dims: [ 3, 384, 128 ]
+    dims: [ 3, 256, 256 ]
   }
 ]
 output [

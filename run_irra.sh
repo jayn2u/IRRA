@@ -1,8 +1,13 @@
 #!/bin/bash
-DATASET_NAME="CUHK-PEDES"
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
+DATASET_NAME=${DATASET_NAME}
 
 CUDA_VISIBLE_DEVICES=0 \
-python train.py \
+uv run train.py \
 --name irra \
 --img_aug \
 --batch_size 64 \

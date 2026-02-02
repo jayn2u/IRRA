@@ -31,7 +31,7 @@ def get_args():
     parser.add_argument("--id_loss_weight", type=float, default=1.0, help="id loss weight")
     
     ######################## vison trainsformer settings ########################
-    parser.add_argument("--img_size", type=tuple, default=(384, 128))
+    parser.add_argument("--img_size", type=tuple, default=(256, 256))
     parser.add_argument("--stride_size", type=int, default=16)
 
     ######################## text transformer settings ########################

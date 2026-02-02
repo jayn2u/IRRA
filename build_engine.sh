@@ -21,10 +21,10 @@ build_model() {
 
     # Determine shapes based on input type
     if [[ "$input_name" == "image" ]]; then
-        # Image: [Batch, 3, 384, 128]
-        MIN_SHAPE="image:1x3x384x128"
-        OPT_SHAPE="image:16x3x384x128"
-        MAX_SHAPE="image:32x3x384x128"
+        # Image: [Batch, 3, 256, 256]
+        MIN_SHAPE="image:1x3x256x256"
+        OPT_SHAPE="image:16x3x256x256"
+        MAX_SHAPE="image:32x3x256x256"
     else
         # Text: [Batch, 77]
         MIN_SHAPE="text:1x77"
@@ -43,7 +43,7 @@ build_model() {
         --fp16 \
         --minShapes=${MIN_SHAPE} \
         --optShapes=${OPT_SHAPE} \
-        --maxShapes=${MAX_SHAPE} \
+        --maxShapes=${MAX_SHAPE}
 }
 
 # 1. CUHK-PEDES
