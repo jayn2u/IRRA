@@ -1,0 +1,1 @@
+uv run export_onnx_cuhk.py && uv run export_onnx_icfg.py && uv run export_onnx_rstp.py
