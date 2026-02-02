@@ -22,6 +22,11 @@ build_model() {
     local input_name=$4
     local input_shape=$5  # e.g. "1x3x384x128" or "1x77"
 
+    if [ ! -f "$onnx_path" ]; then
+        echo "Skipping ${dataset} - ${input_name}: ONNX file not found at ${onnx_path}"
+        return
+    fi
+
     echo "=================================================="
     echo "Building Engine for ${dataset} - ${input_name}"
     echo "ONNX: ${onnx_path}"
@@ -52,7 +57,8 @@ build_model() {
         --fp16 \
         --minShapes=${MIN_SHAPE} \
         --optShapes=${OPT_SHAPE} \
-        --maxShapes=${MAX_SHAPE}
+        --maxShapes=${MAX_SHAPE} \
+        --verbose
 }
 
 # 1. CUHK-PEDES
