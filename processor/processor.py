@@ -4,6 +4,7 @@ import torch
 from utils.meter import AverageMeter
 from utils.metrics import Evaluator
 from utils.comm import get_rank, synchronize
+import distutils.version
 from torch.utils.tensorboard import SummaryWriter
 from prettytable import PrettyTable
 

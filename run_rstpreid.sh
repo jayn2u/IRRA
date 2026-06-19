@@ -1,10 +1,10 @@
 #!/bin/bash
-DATASET_NAME="CUHK-PEDES"
+DATASET_NAME="RSTPReid"
 DATASET_ROOT="/mnt/data/lab_datasets"
 
 CUDA_VISIBLE_DEVICES=0 \
 uv run python train.py \
---name irra \
+--name rstpreid \
 --img_aug \
 --batch_size 64 \
 --MLM \
