@@ -1,19 +1,22 @@
 # IRRA Agent Notes
 
+Use `uv run python` to execute Python code.
+
 ## Dataset location
 
-Training and evaluation datasets live on this machine at:
+Training and evaluation datasets are stored at one of:
 
-```
-/mnt/data/lab_datasets
-```
+- `/mnt/data/lab_datasets`
+- `/data/jayn2u/lab_datasets`
 
-Pass this path to IRRA via `--root_dir`. The default in `utils/options.py` is `./data`, which does **not** point at the lab datasets unless you symlink or copy data there.
+These paths refer to the same storage. Use whichever exists on the current machine.
+
+Pass the chosen path to IRRA via `--root_dir`. The default in `utils/options.py` is `./data`, which does **not** point at the lab datasets unless you symlink or copy data there.
 
 Expected layout under the root:
 
 ```
-/mnt/data/lab_datasets/
+{root_dir}/
 ├── CUHK-PEDES/
 │   ├── imgs/
 │   └── reid_raw.json
