@@ -1,6 +1,6 @@
 #!/bin/bash
 DATASET_NAME="CUHK-PEDES"
-DATASET_ROOT="/mnt/data/lab_datasets"
+DATASET_ROOT="/data/jayn2u/lab_datasets"
 
 CUDA_VISIBLE_DEVICES=0 \
 uv run python train.py \
