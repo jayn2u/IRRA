@@ -17,6 +17,7 @@ dependencies = [
     "regex",
     "tqdm",
     "tensorboard",
+    "gdown>=6.1.0",
 ]
 
 [[tool.uv.index]]

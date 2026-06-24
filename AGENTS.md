@@ -38,6 +38,47 @@ Code resolves paths as `{root_dir}/{dataset_name}/...` (see `datasets/build.py`,
 | RSTPReid      | `RSTPReid`       | Ready  | JSON uses `img_path`; matches `datasets/rstpreid.py`. |
 | ICFG-PEDES    | `ICFG-PEDES`     | Partial | `imgs/train/` missing; ~33% of train annotations reference missing files. Not safe for full training until fixed. |
 
+## Config injection and dataset naming
+
+Lab pedestrian evaluation wrappers (for example, `sugarcrepe-pedes.py` and future YAML-based retrieval scripts) must **not** silently default to a dataset. Every run must inject the YAML config path through an environment variable. If the variable is missing or empty, the script must raise an error.
+
+| Script | Environment variable | Config prefix |
+|--------|---------------------|---------------|
+| `sugarcrepe-pedes.py` | `SUGARCREPE_CONFIG` | `sugarcrepe` |
+| `text-to-image-retrieval.py` (when added) | `RETRIEVAL_CONFIG` | `text_to_image_retrieval` |
+
+Per-dataset config files use the pattern `configs/{task}_{dataset_slug}.yaml`, where `dataset_slug` is one of:
+
+- `cuhk_pedes` — CUHK-PEDES (`dataset: cuhk-pedes`)
+- `icfg_pedes` — ICFG-PEDES (`dataset: icfg-pedes`)
+- `rstpreid` — RSTPReid (`dataset: rstpreid`)
+
+Examples:
+
+- `configs/sugarcrepe_cuhk_pedes.yaml`
+- `configs/sugarcrepe_icfg_pedes.yaml`
+- `configs/sugarcrepe_rstpreid.yaml`
+- `configs/text_to_image_retrieval_cuhk_pedes.yaml` (future)
+
+Each YAML must set `dataset` explicitly. Do not rely on code defaults for dataset selection. Shell scripts under `shell/` should export the matching config path before calling the Python entry point.
+
+Example:
+
+```bash
+export SUGARCREPE_CONFIG=configs/sugarcrepe_icfg_pedes.yaml
+uv run python sugarcrepe-pedes.py
+```
+
+Legacy `train.py` / `test.py` use `--dataset_name` (`CUHK-PEDES`, `ICFG-PEDES`, `RSTPReid`) and `--root_dir`. That CLI pattern is for original IRRA training and checkpoint evaluation, **not** for new lab YAML-based pedestrian probes. New wrappers should use environment config injection instead of `--dataset_name`.
+
+Supported lab pedestrian datasets:
+
+| Dataset slug | Annotation directory | Annotation file | Image path field |
+|--------------|---------------------|-----------------|------------------|
+| `cuhk_pedes` | `CUHK-PEDES/` | `reid_raw.json` | `file_path` |
+| `icfg_pedes` | `ICFG-PEDES/` | `ICFG-PEDES.json` | `file_path` |
+| `rstpreid` | `RSTPReid/` | `data_captions.json` | `img_path` |
+
 ## Training scripts
 
 `run_irra.sh` does not set `--root_dir`. For lab datasets, use:

@@ -1,0 +1,19 @@
+env_file: env/.env
+dataset: cuhk-pedes
+dataset_root: ""
+checkpoint_dir: logs/CUHK-PEDES/irra_cuhk
+train_config: ""
+model_label: IRRA
+test_split: test
+batch_size: 64
+num_workers: 0
+device: auto
+seed: 42
+top_k:
+  - 1
+  - 5
+  - 10
+max_image_samples: 0
+max_text_samples: 0
+output_json: ""
+no_amp: false
