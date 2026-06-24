@@ -34,7 +34,7 @@ Code resolves paths as `{root_dir}/{dataset_name}/...` (see `datasets/build.py`,
 
 | Dataset       | `--dataset_name` | Status | Notes |
 |---------------|------------------|--------|-------|
-| CUHK-PEDES    | `CUHK-PEDES`     | Ready  | All splits; 0 missing images. Default in `run_irra.sh`. |
+| CUHK-PEDES    | `CUHK-PEDES`     | Ready  | All splits; 0 missing images. Train via `shell/train_cuhk_pedes.sh`. |
 | RSTPReid      | `RSTPReid`       | Ready  | JSON uses `img_path`; matches `datasets/rstpreid.py`. |
 | ICFG-PEDES    | `ICFG-PEDES`     | Partial | `imgs/train/` missing; ~33% of train annotations reference missing files. Not safe for full training until fixed. |
 
@@ -81,27 +81,19 @@ Supported lab pedestrian datasets:
 
 ## Training scripts
 
-`run_irra.sh` does not set `--root_dir`. For lab datasets, use:
+Per-dataset training wrappers live under `shell/`:
 
-```bash
---root_dir /mnt/data/lab_datasets
-```
+- `shell/train_cuhk_pedes.sh` (`--dataset_name CUHK-PEDES`)
+- `shell/train_icfg_pedes.sh` (`--dataset_name ICFG-PEDES`)
+- `shell/train_rstpreid.sh` (`--dataset_name RSTPReid`)
+
+Each script resolves `DATASET_ROOT` from `/mnt/data/lab_datasets` or `/data/jayn2u/lab_datasets` and runs from the project root so relative paths such as `./data` and `./logs` resolve correctly.
 
 Example:
 
 ```bash
-python train.py \
-  --name irra \
-  --img_aug \
-  --batch_size 64 \
-  --MLM \
-  --dataset_name CUHK-PEDES \
-  --root_dir /mnt/data/lab_datasets \
-  --loss_names 'sdm+mlm+id' \
-  --num_epoch 60
+sh shell/train_cuhk_pedes.sh
 ```
-
-Run from the project root (`/mnt/data/IRRA`) so relative paths such as `./data` and `./logs` resolve correctly.
 
 ## CLIP BPE vocab (MLM)
 
