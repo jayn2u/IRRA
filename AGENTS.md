@@ -34,16 +34,21 @@ Code resolves paths as `{root_dir}/{dataset_name}/...` (see `datasets/build.py`,
 
 | Dataset       | `--dataset_name` | Status | Notes |
 |---------------|------------------|--------|-------|
-| CUHK-PEDES    | `CUHK-PEDES`     | Ready  | All splits; 0 missing images. Default in `run_irra.sh`. |
-| RSTPReid      | `RSTPReid`       | Ready  | JSON uses `img_path`; matches `datasets/rstpreid.py`. |
-| ICFG-PEDES    | `ICFG-PEDES`     | Partial | `imgs/train/` missing; ~33% of train annotations reference missing files. Not safe for full training until fixed. |
+| CUHK-PEDES    | `CUHK-PEDES`     | Ready  | 40206 anns across train/val/test; 0 missing images. Default in `run_irra.sh`. |
+| RSTPReid      | `RSTPReid`       | Ready  | 20505 anns; JSON uses `img_path`, matching `datasets/rstpreid.py`. |
+| ICFG-PEDES    | `ICFG-PEDES`     | Ready  | 54522 anns (train 34674 / test 19848); 0 missing images. `imgs/train/` has since been populated — the earlier "partial" note is obsolete. |
+
+Re-verify with a JSON-vs-filesystem check after any dataset move; the counts above
+were confirmed on 2026-07-21.
 
 ## Training scripts
 
-`run_irra.sh` does not set `--root_dir`. For lab datasets, use:
+`run_irra.sh`, `run_icfg.sh`, and `run_rstpreid.sh` pick `--root_dir` automatically:
+`/mnt/data/lab_datasets` when that mount exists, otherwise `/data/jayn2u/lab_datasets`.
+When invoking `train.py` by hand, pass whichever exists:
 
 ```bash
---root_dir /mnt/data/lab_datasets
+--root_dir /data/jayn2u/lab_datasets
 ```
 
 Example:
