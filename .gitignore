@@ -8,3 +8,6 @@ __pycache__/
 logs/
 *.pth
 events.out.tfevents.*
+
+env/.env
+wandb/

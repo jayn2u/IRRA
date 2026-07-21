@@ -17,6 +17,7 @@ dependencies = [
     "regex",
     "tqdm",
     "tensorboard",
+    "wandb>=0.28.1",
 ]
 
 [[tool.uv.index]]

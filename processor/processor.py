@@ -7,10 +7,15 @@ from utils.comm import get_rank, synchronize
 import distutils.version
 from torch.utils.tensorboard import SummaryWriter
 from prettytable import PrettyTable
+from utils.wandb_tracking import (
+    WandbSession,
+    log_train_epoch_metrics,
+    log_val_metrics,
+)
 
 
 def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
-             scheduler, checkpointer):
+             scheduler, checkpointer, wandb_session=None):
 
     log_period = args.log_period
     eval_period = args.eval_period
@@ -22,6 +27,9 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
 
     logger = logging.getLogger("IRRA.train")
     logger.info('start training')
+
+    if wandb_session is None:
+        wandb_session = WandbSession(None)
 
     meters = {
         "loss": AverageMeter(),
@@ -82,6 +90,13 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
             if v.avg > 0:
                 tb_writer.add_scalar(k, v.avg, epoch)
 
+        if get_rank() == 0:
+            log_train_epoch_metrics(wandb_session,
+                                    epoch=epoch,
+                                    meters=meters,
+                                    lr=scheduler.get_lr()[0],
+                                    temperature=ret['temperature'])
+
 
         scheduler.step()
         if get_rank() == 0:
@@ -94,10 +109,15 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
         if epoch % eval_period == 0:
             if get_rank() == 0:
                 logger.info("Validation Results - Epoch: {}".format(epoch))
-                if args.distributed:
-                    top1 = evaluator.eval(model.module.eval())
-                else:
-                    top1 = evaluator.eval(model.eval())
+                eval_model = model.module if args.distributed else model
+                val_metrics = evaluator.eval(eval_model.eval(),
+                                             i2t_metric=True,
+                                             return_metrics=True)
+                top1 = val_metrics['t2i_R1']
+
+                for k, v in val_metrics.items():
+                    tb_writer.add_scalar(f'val/{k}', v, epoch)
+                log_val_metrics(wandb_session, epoch=epoch, metrics=val_metrics)
 
                 torch.cuda.empty_cache()
                 if best_top1 < top1:
@@ -105,7 +125,9 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
                     arguments["epoch"] = epoch
                     checkpointer.save("best", **arguments)
     if get_rank() == 0:
-        logger.info(f"best R1: {best_top1} at epoch {arguments['epoch']}")
+        best_epoch = arguments.get("epoch", start_epoch)
+        logger.info(f"best R1: {best_top1} at epoch {best_epoch}")
+    return best_top1, arguments.get("epoch", start_epoch)
 
 
 def do_inference(model, test_img_loader, test_txt_loader):

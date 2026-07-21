@@ -13,6 +13,16 @@ def get_args():
     parser.add_argument("--resume", default=False, action='store_true')
     parser.add_argument("--resume_ckpt_file", default="", help='resume from ...')
 
+    ######################## wandb settings ########################
+    parser.add_argument("--wandb", default=False, action='store_true', help="log per-epoch train/validation metrics to Weights & Biases")
+    parser.add_argument("--wandb_project", default="", help="wandb project, defaults to WANDB_PROJECT from the env file")
+    parser.add_argument("--wandb_entity", default="", help="wandb entity, defaults to WANDB_ENTITY from the env file")
+    parser.add_argument("--wandb_run_name", default="", help="wandb run name, defaults to the output dir name")
+    parser.add_argument("--wandb_group", default="", help="wandb group, defaults to the dataset name")
+    parser.add_argument("--wandb_notes", default="", help="wandb run notes")
+    parser.add_argument("--wandb_tags", default=[], nargs='+', help="extra wandb tags")
+    parser.add_argument("--wandb_env_file", default="env/.env", help="env file holding WANDB_API_KEY / WANDB_ENTITY / WANDB_PROJECT")
+
     ######################## model general settings ########################
     parser.add_argument("--pretrain_choice", default='ViT-B/16') # whether use pretrained model
     parser.add_argument("--temperature", type=float, default=0.02, help="initial temperature value, if 0, don't use temperature")
