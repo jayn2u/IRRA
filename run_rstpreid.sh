@@ -11,4 +11,5 @@ uv run python train.py \
 --dataset_name $DATASET_NAME \
 --root_dir $DATASET_ROOT \
 --loss_names 'sdm+mlm+id' \
---num_epoch 60
+--num_epoch 60 \
+--wandb

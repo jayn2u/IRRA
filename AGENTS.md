@@ -57,10 +57,52 @@ python train.py \
   --dataset_name CUHK-PEDES \
   --root_dir /mnt/data/lab_datasets \
   --loss_names 'sdm+mlm+id' \
-  --num_epoch 60
+  --num_epoch 60 \
+  --wandb
 ```
 
 Run from the project root (`/mnt/data/IRRA`) so relative paths such as `./data` and `./logs` resolve correctly.
+
+## Weights & Biases logging
+
+`--wandb` turns on per-epoch logging to W&B (`utils/wandb_tracking.py`, modelled on
+lab_clip's `src/wandb_tracking.py`). Without the flag every logging call is a no-op,
+so training behaves exactly as before.
+
+Credentials come from `env/.env` (gitignored; `env/.env.example` is the template).
+Process environment variables win over the file. Override the path with
+`--wandb_env_file`.
+
+```
+WANDB_API_KEY=...
+WANDB_ENTITY=tonychoi179-jayn2u
+WANDB_PROJECT=irra
+```
+
+Logged every epoch:
+
+| Key | Meaning |
+|-----|---------|
+| `val/t2i_error@{1,5,10}` | validation error, `100 - R@k` (text→image; the primary curve) |
+| `val/i2t_error@{1,5,10}` | validation error (image→text) |
+| `val/t2i_R{1,5,10}`, `val/t2i_mAP`, `val/t2i_mINP` | raw retrieval metrics |
+| `val/i2t_*` | same for image→text |
+| `train/loss`, `train/sdm_loss`, `train/mlm_loss`, `train/id_loss`, `train/*_acc` | epoch averages from the meters |
+| `train/lr`, `train/temperature` | scheduler LR and learned temperature |
+
+Everything is stepped by `epoch` via `define_metric`, so W&B plots against the
+epoch axis. Validation runs on `--eval_period` epochs (default 1) over
+`--val_dataset` (default `test`). Run summary carries `val/best_t2i_R1`,
+`val/best_t2i_error@1`, and `val/best_epoch`. Rank 0 owns the run under DDP.
+
+Validation now always computes i2t metrics as well (`Evaluator.eval(..., i2t_metric=True)`),
+which is why the i2t curves exist; `Evaluator.eval` still returns t2i R1 unless
+`return_metrics=True` is passed, so `test.py` is unaffected.
+
+Other flags: `--wandb_project`, `--wandb_entity`, `--wandb_run_name` (default: the
+timestamped output dir name), `--wandb_group` (default: dataset name), `--wandb_tags`,
+`--wandb_notes`. The run id is written to `{output_dir}/wandb_meta.json` and
+`{output_dir}/wandb_run_id` for downstream jobs to attach to.
 
 ## CLIP BPE vocab (MLM)
 
