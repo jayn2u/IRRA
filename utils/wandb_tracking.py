@@ -193,6 +193,7 @@ def start_train_run(args):
 
     # `val/t2i_error@1` is the primary curve; make wandb rank runs by it.
     run.define_metric("epoch")
+    run.define_metric("epoch/*", step_metric="epoch")
     run.define_metric("val/*", step_metric="epoch")
     run.define_metric("train/*", step_metric="epoch")
     run.define_metric("val/t2i_error@1", summary="min")
@@ -214,6 +215,21 @@ def log_train_epoch_metrics(session, epoch, meters, lr, temperature=None):
     if temperature is not None:
         payload["train/temperature"] = _scalar(temperature)
     session.log(payload)
+
+
+def log_peak_vram_metrics(session, epoch, allocated_bytes=None,
+                          reserved_bytes=None):
+    """Log complete-epoch CUDA allocator peaks in GiB."""
+    if not session.enabled:
+        return
+    if allocated_bytes is None or reserved_bytes is None:
+        return
+    bytes_per_gib = 1024 ** 3
+    session.log({
+        "epoch": epoch,
+        "epoch/peak_vram_allocated_gib": _scalar(allocated_bytes) / bytes_per_gib,
+        "epoch/peak_vram_reserved_gib": _scalar(reserved_bytes) / bytes_per_gib,
+    })
 
 
 def log_val_metrics(session, epoch, metrics):
