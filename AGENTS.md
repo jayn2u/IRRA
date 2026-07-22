@@ -94,6 +94,8 @@ Logged every epoch:
 | `val/i2t_*` | same for image→text |
 | `train/loss`, `train/sdm_loss`, `train/mlm_loss`, `train/id_loss`, `train/*_acc` | epoch averages from the meters |
 | `train/lr`, `train/temperature` | scheduler LR and learned temperature |
+| `epoch/peak_vram_allocated_gib` | maximum PyTorch tensor allocation during the complete epoch, in GiB; DDP logs the largest rank |
+| `epoch/peak_vram_reserved_gib` | maximum PyTorch CUDA allocator reservation during the complete epoch, in GiB; DDP logs the largest rank |
 
 Everything is stepped by `epoch` via `define_metric`, so W&B plots against the
 epoch axis. Validation runs on `--eval_period` epochs (default 1) over

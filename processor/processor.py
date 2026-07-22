@@ -9,9 +9,32 @@ from torch.utils.tensorboard import SummaryWriter
 from prettytable import PrettyTable
 from utils.wandb_tracking import (
     WandbSession,
+    log_peak_vram_metrics,
     log_train_epoch_metrics,
     log_val_metrics,
 )
+
+
+def _reset_peak_vram_stats():
+    if not torch.cuda.is_available():
+        return False
+    torch.cuda.reset_peak_memory_stats()
+    return True
+
+
+def _peak_vram_bytes(distributed=False):
+    if not torch.cuda.is_available():
+        return None
+    peaks = torch.tensor(
+        [torch.cuda.max_memory_allocated(),
+         torch.cuda.max_memory_reserved()],
+        dtype=torch.int64,
+        device="cuda",
+    )
+    if distributed:
+        torch.distributed.all_reduce(peaks, op=torch.distributed.ReduceOp.MAX)
+    allocated_bytes, reserved_bytes = peaks.tolist()
+    return int(allocated_bytes), int(reserved_bytes)
 
 
 def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
@@ -48,6 +71,7 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
 
     # train
     for epoch in range(start_epoch, num_epoch + 1):
+        _reset_peak_vram_stats()
         start_time = time.time()
         for meter in meters.values():
             meter.reset()
@@ -124,6 +148,15 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
                     best_top1 = top1
                     arguments["epoch"] = epoch
                     checkpointer.save("best", **arguments)
+        peak_vram = _peak_vram_bytes(distributed=args.distributed)
+        if get_rank() == 0 and peak_vram is not None:
+            allocated_bytes, reserved_bytes = peak_vram
+            log_peak_vram_metrics(
+                wandb_session,
+                epoch=epoch,
+                allocated_bytes=allocated_bytes,
+                reserved_bytes=reserved_bytes,
+            )
     if get_rank() == 0:
         best_epoch = arguments.get("epoch", start_epoch)
         logger.info(f"best R1: {best_top1} at epoch {best_epoch}")
