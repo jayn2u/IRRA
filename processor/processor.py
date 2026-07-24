@@ -1,9 +1,8 @@
 import logging
-import time
 import torch
 from utils.meter import AverageMeter
 from utils.metrics import Evaluator
-from utils.comm import get_rank, synchronize
+from utils.comm import get_rank, get_world_size, synchronize
 import distutils.version
 from torch.utils.tensorboard import SummaryWriter
 from prettytable import PrettyTable
@@ -12,6 +11,26 @@ from utils.wandb_tracking import (
     log_train_epoch_metrics,
     log_val_metrics,
 )
+from utils.efficiency import (
+    build_epoch_efficiency_metrics,
+    finish_cuda_timer,
+    format_peak_vram,
+    get_global_processed_examples,
+    get_peak_vram_metrics,
+    start_measurement,
+)
+
+
+def _evaluate_with_efficiency(evaluator, model, device):
+    started_at = start_measurement(device)
+    metrics = evaluator.eval(
+        model.eval(),
+        i2t_metric=True,
+        return_metrics=True,
+    )
+    epoch_seconds = finish_cuda_timer(device, started_at)
+    vram_metrics = get_peak_vram_metrics(device)
+    return metrics, {"epoch_seconds": epoch_seconds}, vram_metrics
 
 
 def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
@@ -19,7 +38,7 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
 
     log_period = args.log_period
     eval_period = args.eval_period
-    device = "cuda"
+    device = torch.device("cuda")
     num_epoch = args.num_epoch
     arguments = {}
     arguments["num_epoch"] = num_epoch
@@ -45,13 +64,14 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
     tb_writer = SummaryWriter(log_dir=args.output_dir)
 
     best_top1 = 0.0
+    cumulative_gpu_seconds = 0.0
 
     # train
     for epoch in range(start_epoch, num_epoch + 1):
-        start_time = time.time()
         for meter in meters.values():
             meter.reset()
         model.train()
+        train_started_at = start_measurement(device)
 
         for n_iter, batch in enumerate(train_loader):
             batch = {k: v.to(device) for k, v in batch.items()}
@@ -83,7 +103,20 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
                         info_str += f", {k}: {v.avg:.4f}"
                 info_str += f", Base Lr: {scheduler.get_lr()[0]:.2e}"
                 logger.info(info_str)
-        
+
+        train_seconds = finish_cuda_timer(device, train_started_at)
+        train_vram_metrics = get_peak_vram_metrics(device)
+        processed_examples = get_global_processed_examples(
+            meters["loss"].count,
+            device,
+        )
+        cumulative_gpu_seconds += train_seconds * get_world_size()
+        train_efficiency_metrics = build_epoch_efficiency_metrics(
+            epoch_seconds=train_seconds,
+            processed_examples=processed_examples,
+            cumulative_seconds=cumulative_gpu_seconds,
+        )
+
         tb_writer.add_scalar('lr', scheduler.get_lr()[0], epoch)
         tb_writer.add_scalar('temperature', ret['temperature'], epoch)
         for k, v in meters.items():
@@ -95,29 +128,53 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
                                     epoch=epoch,
                                     meters=meters,
                                     lr=scheduler.get_lr()[0],
-                                    temperature=ret['temperature'])
+                                    temperature=ret['temperature'],
+                                    efficiency_metrics=train_efficiency_metrics,
+                                    vram_metrics=train_vram_metrics)
 
 
         scheduler.step()
         if get_rank() == 0:
-            end_time = time.time()
-            time_per_batch = (end_time - start_time) / (n_iter + 1)
+            time_per_batch = train_seconds / (n_iter + 1)
             logger.info(
-                "Epoch {} done. Time per batch: {:.3f}[s] Speed: {:.1f}[samples/s]"
-                .format(epoch, time_per_batch,
-                        train_loader.batch_size / time_per_batch))
+                "Epoch {} done. Train time: {:.3f}[s] Time per batch: {:.3f}[s] "
+                "Speed: {:.1f}[samples/s]{}"
+                .format(
+                    epoch,
+                    train_seconds,
+                    time_per_batch,
+                    train_efficiency_metrics["examples_per_second"],
+                    format_peak_vram(train_vram_metrics),
+                ))
         if epoch % eval_period == 0:
             if get_rank() == 0:
                 logger.info("Validation Results - Epoch: {}".format(epoch))
                 eval_model = model.module if args.distributed else model
-                val_metrics = evaluator.eval(eval_model.eval(),
-                                             i2t_metric=True,
-                                             return_metrics=True)
+                val_metrics, val_efficiency_metrics, val_vram_metrics = (
+                    _evaluate_with_efficiency(
+                        evaluator=evaluator,
+                        model=eval_model,
+                        device=device,
+                    )
+                )
                 top1 = val_metrics['t2i_R1']
 
                 for k, v in val_metrics.items():
                     tb_writer.add_scalar(f'val/{k}', v, epoch)
-                log_val_metrics(wandb_session, epoch=epoch, metrics=val_metrics)
+                log_val_metrics(
+                    wandb_session,
+                    epoch=epoch,
+                    metrics=val_metrics,
+                    efficiency_metrics=val_efficiency_metrics,
+                    vram_metrics=val_vram_metrics,
+                )
+                logger.info(
+                    "Validation epoch {} done. Time: {:.3f}[s]{}"
+                    .format(
+                        epoch,
+                        val_efficiency_metrics["epoch_seconds"],
+                        format_peak_vram(val_vram_metrics),
+                    ))
 
                 torch.cuda.empty_cache()
                 if best_top1 < top1:
