@@ -197,13 +197,40 @@ def start_train_run(args):
     run.define_metric("train/*", step_metric="epoch")
     run.define_metric("val/t2i_error@1", summary="min")
     run.define_metric("val/t2i_R1", summary="max")
+    run.define_metric(
+        "train/peak_vram_allocated_mb",
+        step_metric="epoch",
+        summary="max",
+    )
+    run.define_metric(
+        "train/peak_vram_reserved_mb",
+        step_metric="epoch",
+        summary="max",
+    )
+    run.define_metric(
+        "val/peak_vram_allocated_mb",
+        step_metric="epoch",
+        summary="max",
+    )
+    run.define_metric(
+        "val/peak_vram_reserved_mb",
+        step_metric="epoch",
+        summary="max",
+    )
 
     config_file = op.join(args.output_dir, 'configs.yaml')
     session.save(config_file, base_path=args.output_dir)
     return session
 
 
-def log_train_epoch_metrics(session, epoch, meters, lr, temperature=None):
+def log_train_epoch_metrics(
+        session,
+        epoch,
+        meters,
+        lr,
+        temperature=None,
+        efficiency_metrics=None,
+        vram_metrics=None):
     """Per-epoch training averages (losses / accuracies) from the meters."""
     if not session.enabled:
         return
@@ -213,10 +240,19 @@ def log_train_epoch_metrics(session, epoch, meters, lr, temperature=None):
             payload[f"train/{name}"] = _scalar(meter.avg)
     if temperature is not None:
         payload["train/temperature"] = _scalar(temperature)
+    for key, value in (efficiency_metrics or {}).items():
+        payload[f"train/{key}"] = _scalar(value)
+    for key, value in (vram_metrics or {}).items():
+        payload[f"train/{key}"] = _scalar(value)
     session.log(payload)
 
 
-def log_val_metrics(session, epoch, metrics):
+def log_val_metrics(
+        session,
+        epoch,
+        metrics,
+        efficiency_metrics=None,
+        vram_metrics=None):
     """Per-epoch validation metrics, including the error curves.
 
     `metrics` uses the flat keys produced by `utils.metrics.Evaluator.eval`
@@ -226,6 +262,10 @@ def log_val_metrics(session, epoch, metrics):
         return
     payload = {"epoch": epoch}
     for key, value in metrics.items():
+        payload[f"val/{key}"] = _scalar(value)
+    for key, value in (efficiency_metrics or {}).items():
+        payload[f"val/{key}"] = _scalar(value)
+    for key, value in (vram_metrics or {}).items():
         payload[f"val/{key}"] = _scalar(value)
     # Retrieval error = 100 - recall, so the curve goes down as training helps.
     for task in ("t2i", "i2t"):

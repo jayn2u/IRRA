@@ -89,6 +89,11 @@ Logged every epoch:
 | `val/i2t_*` | same for image→text |
 | `train/loss`, `train/sdm_loss`, `train/mlm_loss`, `train/id_loss`, `train/*_acc` | epoch averages from the meters |
 | `train/lr`, `train/temperature` | scheduler LR and learned temperature |
+| `train/epoch_seconds`, `train/examples_per_second` | CUDA-synchronized training-loop duration and throughput; excludes validation and checkpoint I/O |
+| `train/cumulative_gpu_hours` | cumulative training-loop duration in GPU hours for the current run |
+| `train/peak_vram_allocated_mb`, `train/peak_vram_reserved_mb` | PyTorch process peak VRAM during the training loop |
+| `val/epoch_seconds` | CUDA-synchronized validation duration |
+| `val/peak_vram_allocated_mb`, `val/peak_vram_reserved_mb` | PyTorch process peak VRAM during validation, reset separately from training |
 
 Everything is stepped by `epoch` via `define_metric`, so W&B plots against the
 epoch axis. Validation runs on `--eval_period` epochs (default 1) over
