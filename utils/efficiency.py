@@ -13,6 +13,12 @@ def start_cuda_timer(device):
     return time.perf_counter()
 
 
+def start_measurement(device):
+    _synchronize_cuda(device)
+    reset_peak_vram_stats(device)
+    return time.perf_counter()
+
+
 def finish_cuda_timer(device, started_at):
     _synchronize_cuda(device)
     return time.perf_counter() - started_at
@@ -36,6 +42,36 @@ def get_peak_vram_metrics(device):
             torch.cuda.max_memory_reserved(device) / mib
         ),
     }
+
+
+def get_global_processed_examples(processed_examples, device):
+    if (
+        not torch.distributed.is_available()
+        or not torch.distributed.is_initialized()
+    ):
+        return int(processed_examples)
+    count = torch.tensor(
+        processed_examples,
+        dtype=torch.long,
+        device=device,
+    )
+    torch.distributed.all_reduce(
+        count,
+        op=torch.distributed.ReduceOp.SUM,
+    )
+    return int(count.item())
+
+
+def format_peak_vram(metrics):
+    if not metrics:
+        return ""
+    return (
+        " Peak allocated: {:.2f}[MiB] Peak reserved: {:.2f}[MiB]"
+        .format(
+            metrics["peak_vram_allocated_mb"],
+            metrics["peak_vram_reserved_mb"],
+        )
+    )
 
 
 def build_epoch_efficiency_metrics(

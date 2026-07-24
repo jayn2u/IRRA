@@ -12,9 +12,10 @@ Each training epoch records:
 
 - `train/epoch_seconds`: CUDA-synchronized elapsed time for the training loop
   only.
-- `train/examples_per_second`: processed training examples divided by
+- `train/examples_per_second`: globally processed training examples divided by
   `train/epoch_seconds`.
-- `train/cumulative_gpu_hours`: sum of training-loop epoch durations.
+- `train/cumulative_gpu_hours`: sum of training-loop epoch durations multiplied
+  by the active distributed world size.
 - `train/peak_vram_allocated_mb`: PyTorch process peak allocated memory during
   the training loop.
 - `train/peak_vram_reserved_mb`: PyTorch process peak reserved memory during
