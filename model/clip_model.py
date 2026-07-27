@@ -13,6 +13,7 @@ import warnings
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torch.utils.checkpoint
 from torch import nn
 
 
@@ -252,18 +253,23 @@ class ResidualAttentionBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None):
+    def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None, use_grad_checkpointing: bool = False):
         super().__init__()
         self.width = width
         self.layers = layers
+        self.use_grad_checkpointing = use_grad_checkpointing
         self.resblocks = nn.Sequential(*[ResidualAttentionBlock(width, heads, attn_mask) for _ in range(layers)])
 
     def forward(self, x: torch.Tensor):
+        if self.use_grad_checkpointing and self.training:
+            for block in self.resblocks:
+                x = torch.utils.checkpoint.checkpoint(block, x, use_reentrant=False)
+            return x
         return self.resblocks(x)
 
 
 class VisionTransformer(nn.Module):
-    def __init__(self, input_resolution: Tuple[int, int], patch_size: int, stride_size: int, width: int, layers: int, heads: int, output_dim: int):
+    def __init__(self, input_resolution: Tuple[int, int], patch_size: int, stride_size: int, width: int, layers: int, heads: int, output_dim: int, use_grad_checkpointing: bool = False):
         super().__init__()
         self.input_resolution = input_resolution # (384, 128)
         self.num_x = (input_resolution[1] - patch_size) // stride_size + 1
@@ -278,7 +284,7 @@ class VisionTransformer(nn.Module):
         self.positional_embedding = nn.Parameter(scale * torch.randn(num_patches + 1, width))
         self.ln_pre = LayerNorm(width)
 
-        self.transformer = Transformer(width, layers, heads)
+        self.transformer = Transformer(width, layers, heads, use_grad_checkpointing=use_grad_checkpointing)
 
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
@@ -320,7 +326,8 @@ class CLIP(nn.Module):
                  vocab_size: int,
                  transformer_width: int,
                  transformer_heads: int,
-                 transformer_layers: int
+                 transformer_layers: int,
+                 use_grad_checkpointing: bool = False
                  ):
         super().__init__()
 
@@ -344,14 +351,16 @@ class CLIP(nn.Module):
                 width=vision_width,
                 layers=vision_layers,
                 heads=vision_heads,
-                output_dim=embed_dim
+                output_dim=embed_dim,
+                use_grad_checkpointing=use_grad_checkpointing
             )
 
         self.transformer = Transformer(
             width=transformer_width,
             layers=transformer_layers,
             heads=transformer_heads,
-            attn_mask=self.build_attention_mask()
+            attn_mask=self.build_attention_mask(),
+            use_grad_checkpointing=use_grad_checkpointing
         )
 
         self.vocab_size = vocab_size
@@ -505,7 +514,7 @@ def convert_weights(model: nn.Module):
     model.apply(_convert_weights_to_fp16)
 
 
-def build_CLIP_from_openai_pretrained(name: str, image_size: Union[int, Tuple[int, int]], stride_size: int, jit: bool = False, download_root: str = None):
+def build_CLIP_from_openai_pretrained(name: str, image_size: Union[int, Tuple[int, int]], stride_size: int, jit: bool = False, download_root: str = None, use_grad_checkpointing: bool = False):
     """Load a CLIP model
 
     Parameters
@@ -563,6 +572,9 @@ def build_CLIP_from_openai_pretrained(name: str, image_size: Union[int, Tuple[in
         vision_patch_size = None
         assert output_width ** 2 + 1 == state_dict["visual.attnpool.positional_embedding"].shape[0]
         image_resolution = output_width * 32
+        if use_grad_checkpointing:
+            logger.warning("gradient checkpointing is only implemented for the ViT visual backbone; "
+                            "it will be skipped for the ResNet visual encoder")
 
     embed_dim = state_dict["text_projection"].shape[1]
     context_length = state_dict["positional_embedding"].shape[0]
@@ -579,9 +591,10 @@ def build_CLIP_from_openai_pretrained(name: str, image_size: Union[int, Tuple[in
         'vision_patch_size': vision_patch_size,
         'context_length': context_length, 
         'vocab_size': vocab_size, 
-        'transformer_width': transformer_width, 
-        'transformer_heads': transformer_heads, 
-        'transformer_layers': transformer_layers
+        'transformer_width': transformer_width,
+        'transformer_heads': transformer_heads,
+        'transformer_layers': transformer_layers,
+        'use_grad_checkpointing': use_grad_checkpointing
     }
 
 

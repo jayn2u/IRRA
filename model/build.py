@@ -13,7 +13,9 @@ class IRRA(nn.Module):
         self.num_classes = num_classes
         self._set_task()
 
-        self.base_model, base_cfg = build_CLIP_from_openai_pretrained(args.pretrain_choice, args.img_size, args.stride_size)
+        self.base_model, base_cfg = build_CLIP_from_openai_pretrained(
+            args.pretrain_choice, args.img_size, args.stride_size,
+            use_grad_checkpointing=getattr(args, 'gradient_checkpointing', False))
         self.embed_dim = base_cfg['embed_dim']
 
         self.logit_scale = torch.ones([]) * (1 / args.temperature) 
@@ -30,7 +32,8 @@ class IRRA(nn.Module):
             self.cross_modal_transformer = Transformer(width=self.embed_dim,
                                                        layers=args.cmt_depth,
                                                        heads=self.embed_dim //
-                                                       64)
+                                                       64,
+                                                       use_grad_checkpointing=getattr(args, 'gradient_checkpointing', False))
             scale = self.cross_modal_transformer.width**-0.5
             
             self.ln_pre_t = LayerNorm(self.embed_dim)

@@ -1,8 +1,10 @@
 import logging
+import os
 import torch
 from utils.meter import AverageMeter
 from utils.metrics import Evaluator
 from utils.comm import get_rank, get_world_size, synchronize
+from utils.ema import ModelEMA
 import distutils.version
 from torch.utils.tensorboard import SummaryWriter
 from prettytable import PrettyTable
@@ -50,6 +52,15 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
     if wandb_session is None:
         wandb_session = WandbSession(None)
 
+    amp_enabled = getattr(args, 'amp', False)
+    scaler = torch.amp.GradScaler(device=device.type, enabled=amp_enabled)
+
+    ema = None
+    if getattr(args, 'ema', False) and get_rank() == 0:
+        ema_source = model.module if args.distributed else model
+        ema = ModelEMA(ema_source, decay=getattr(args, 'ema_decay', 0.999))
+        logger.info(f"EMA enabled, decay: {ema.decay}")
+
     meters = {
         "loss": AverageMeter(),
         "sdm_loss": AverageMeter(),
@@ -76,8 +87,9 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
         for n_iter, batch in enumerate(train_loader):
             batch = {k: v.to(device) for k, v in batch.items()}
 
-            ret = model(batch)
-            total_loss = sum([v for k, v in ret.items() if "loss" in k])
+            with torch.amp.autocast(device_type=device.type, enabled=amp_enabled):
+                ret = model(batch)
+                total_loss = sum([v for k, v in ret.items() if "loss" in k])
 
             batch_size = batch['images'].shape[0]
             meters['loss'].update(total_loss.item(), batch_size)
@@ -91,8 +103,11 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
             meters['mlm_acc'].update(ret.get('mlm_acc', 0), 1)
 
             optimizer.zero_grad()
-            total_loss.backward()
-            optimizer.step()
+            scaler.scale(total_loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            if ema is not None:
+                ema.update(model.module if args.distributed else model)
             synchronize()
 
             if (n_iter + 1) % log_period == 0:
@@ -149,7 +164,7 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
         if epoch % eval_period == 0:
             if get_rank() == 0:
                 logger.info("Validation Results - Epoch: {}".format(epoch))
-                eval_model = model.module if args.distributed else model
+                eval_model = ema.module if ema is not None else (model.module if args.distributed else model)
                 val_metrics, val_efficiency_metrics, val_vram_metrics = (
                     _evaluate_with_efficiency(
                         evaluator=evaluator,
@@ -181,6 +196,10 @@ def do_train(start_epoch, args, model, train_loader, evaluator, optimizer,
                     best_top1 = top1
                     arguments["epoch"] = epoch
                     checkpointer.save("best", **arguments)
+                    if ema is not None:
+                        ema_save_path = os.path.join(args.output_dir, "best_ema.pth")
+                        torch.save({"model": ema.state_dict(), "epoch": epoch}, ema_save_path)
+                        logger.info(f"Saving EMA checkpoint to {ema_save_path}")
     if get_rank() == 0:
         best_epoch = arguments.get("epoch", start_epoch)
         logger.info(f"best R1: {best_top1} at epoch {best_epoch}")
