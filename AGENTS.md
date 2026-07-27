@@ -63,6 +63,27 @@ python train.py \
 
 Run from the project root (`/mnt/data/IRRA`) so relative paths such as `./data` and `./logs` resolve correctly.
 
+## AMP / gradient checkpointing / EMA control run
+
+Added for the peer-review ablation asking whether AMP+GC+EMA (not the loss
+choice) explain efficiency gains claimed for another method built on this
+codebase. These flags are opt-in and off by default, so plain `run_irra.sh`
+behaves exactly as before.
+
+| Flag | Effect |
+|------|--------|
+| `--amp` | Wraps the forward/loss pass in `torch.amp.autocast` and uses `torch.amp.GradScaler` for backward/step. No-op when omitted (`GradScaler(enabled=False)`). |
+| `--gradient_checkpointing` | Applies `torch.utils.checkpoint` to the CLIP ViT visual transformer, the text transformer, and the MLM cross-modal transformer. Only implemented for the ViT visual backbone (not `ModifiedResNet`); a warning is logged if requested with an RN* `--pretrain_choice`. |
+| `--ema` | Maintains an EMA shadow copy (`utils/ema.py`) of the model, updated after every optimizer step (rank 0 only). Validation and the "best" checkpoint use the EMA weights instead of the raw trained weights whenever this is set. |
+| `--ema_decay` | EMA decay rate, default `0.999`. Only used with `--ema`. |
+
+When `--ema` is set, in addition to the usual `best.pth` (raw weights, for
+resume), a `best_ema.pth` is written to `--output_dir` holding the EMA state
+dict — that's the weights actually being evaluated for `best_top1`.
+
+`run_irra_amp_ema_gc.sh` runs the CUHK-PEDES baseline with all three enabled,
+for comparison against `run_irra.sh`.
+
 ## Weights & Biases logging
 
 `--wandb` turns on per-epoch logging to W&B (`utils/wandb_tracking.py`, modelled on
