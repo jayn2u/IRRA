@@ -27,7 +27,7 @@ def run_launcher(script_name):
         env["CAPTURE_ARGS"] = str(args_path)
         env["CAPTURE_CUDA"] = str(cuda_path)
         subprocess.run(
-            ["bash", str(REPO_ROOT / script_name)],
+            [str(REPO_ROOT / script_name)],
             cwd=REPO_ROOT,
             env=env,
             check=True,
