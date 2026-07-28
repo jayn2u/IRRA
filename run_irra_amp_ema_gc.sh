@@ -3,7 +3,6 @@
 # checkpointing + EMA into the plain IRRA baseline reproduce the efficiency
 # gains attributed to the simpler loss? Compare against run_irra.sh.
 DATASET_NAME="CUHK-PEDES"
-# Dataset root comes from DATASET_ROOT_DIR in env/.env (gitignored, per-machine).
 
 CUDA_VISIBLE_DEVICES=0 \
 uv run python train.py \

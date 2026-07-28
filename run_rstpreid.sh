@@ -1,6 +1,5 @@
 #!/bin/bash
 DATASET_NAME="RSTPReid"
-# Dataset root comes from DATASET_ROOT_DIR in env/.env (gitignored, per-machine).
 
 CUDA_VISIBLE_DEVICES=0 \
 uv run python train.py \
