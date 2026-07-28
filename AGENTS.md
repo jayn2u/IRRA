@@ -11,7 +11,7 @@ Training and evaluation datasets are stored at one of:
 
 These paths refer to the same storage. Use whichever exists on the current machine.
 
-Pass the chosen path to IRRA via `--root_dir`. The default in `utils/options.py` is `./data`, which does **not** point at the lab datasets unless you symlink or copy data there.
+Set `DATASET_ROOT_DIR` in `env/.env` (gitignored, per-machine; template at `env/.env.example`) to whichever of the two paths exists on the current machine. `utils/options.py` loads `env/.env` and uses `DATASET_ROOT_DIR` as the default for `--root_dir`, falling back to `./data` if unset. Pass `--root_dir` explicitly to override it for a single run.
 
 Expected layout under the root:
 
@@ -40,11 +40,10 @@ Code resolves paths as `{root_dir}/{dataset_name}/...` (see `datasets/build.py`,
 
 ## Training scripts
 
-`run_irra.sh` does not set `--root_dir`. For lab datasets, use:
-
-```bash
---root_dir /mnt/data/lab_datasets
-```
+`run_irra.sh`, `run_icfg.sh`, `run_rstpreid.sh`, and `run_irra_amp_ema_gc.sh` no longer
+hardcode `--root_dir`; they rely on `DATASET_ROOT_DIR` from `env/.env` (see above).
+Make sure `env/.env` exists on the current machine before running them, or pass
+`--root_dir` explicitly.
 
 Example:
 
@@ -55,7 +54,6 @@ python train.py \
   --batch_size 64 \
   --MLM \
   --dataset_name CUHK-PEDES \
-  --root_dir /mnt/data/lab_datasets \
   --loss_names 'sdm+mlm+id' \
   --num_epoch 60 \
   --wandb

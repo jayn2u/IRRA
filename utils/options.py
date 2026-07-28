@@ -1,4 +1,10 @@
 import argparse
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / "env" / ".env")
 
 
 def get_args():
@@ -79,7 +85,7 @@ def get_args():
     parser.add_argument("--dataset_name", default="CUHK-PEDES", help="[CUHK-PEDES, ICFG-PEDES, RSTPReid]")
     parser.add_argument("--sampler", default="random", help="choose sampler from [idtentity, random]")
     parser.add_argument("--num_instance", type=int, default=4)
-    parser.add_argument("--root_dir", default="./data")
+    parser.add_argument("--root_dir", default=os.environ.get("DATASET_ROOT_DIR", "./data"), help="dataset root dir, defaults to DATASET_ROOT_DIR from env/.env")
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--test_batch_size", type=int, default=512)
     parser.add_argument("--num_workers", type=int, default=8)
