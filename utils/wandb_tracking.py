@@ -9,6 +9,8 @@ import logging
 import os
 import os.path as op
 
+import torch
+
 try:
     import wandb
 except ImportError:
@@ -118,6 +120,16 @@ def flatten_config(config):
     return flat
 
 
+def get_gpu_config():
+    """Return filterable GPU metadata for the current training process."""
+    if not torch.cuda.is_available():
+        return {}
+    return {
+        "gpu_name": torch.cuda.get_device_name(),
+        "gpu_count": int(os.environ.get("WORLD_SIZE", 1)),
+    }
+
+
 def _wandb_tags(args, *extra):
     raw_tags = getattr(args, "wandb_tags", None) or []
     tags = [str(tag) for tag in raw_tags]
@@ -167,6 +179,8 @@ def start_train_run(args):
     group = _read_setting(args, "wandb_group") or str(args.dataset_name)
     notes = _read_setting(args, "wandb_notes") or None
     tags = _wandb_tags(args, str(args.dataset_name), str(args.loss_names), "train")
+    run_config = dict(vars(args))
+    run_config.update(get_gpu_config())
 
     run = wandb.init(
         project=project,
@@ -176,7 +190,7 @@ def start_train_run(args):
         name=run_name,
         notes=notes,
         tags=tags,
-        config=flatten_config(vars(args)),
+        config=flatten_config(run_config),
         dir=args.output_dir,
     )
     session = WandbSession(run)
