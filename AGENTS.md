@@ -142,7 +142,11 @@ This file is separate from `--root_dir` and is already present under the project
 
 ### Issue tracker
 
-Issues live as local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+Issues and PRDs are tracked in GitHub Issues using the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the five default canonical labels. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
