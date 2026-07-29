@@ -137,3 +137,13 @@ When `--MLM` is enabled, `SimpleTokenizer` loads:
 ```
 
 This file is separate from `--root_dir` and is already present under the project `data/` directory.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
