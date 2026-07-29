@@ -6,35 +6,64 @@ import torch.nn.functional as F
 import logging
 
 
-def rank(similarity, q_pids, g_pids, max_rank=10, get_mAP=True):
-    if get_mAP:
-        indices = torch.argsort(similarity, dim=1, descending=True)
-    else:
+def rank(similarity, q_pids, g_pids, max_rank=10, get_mAP=True, chunk_size=2048):
+    if not get_mAP:
         # acclerate sort with topk
         _, indices = torch.topk(
             similarity, k=max_rank, dim=1, largest=True, sorted=True
         )  # q * topk
-    pred_labels = g_pids[indices.cpu()]  # q * k
-    matches = pred_labels.eq(q_pids.view(-1, 1))  # q * k
+        pred_labels = g_pids[indices.cpu()]  # q * k
+        matches = pred_labels.eq(q_pids.view(-1, 1))  # q * k
 
-    all_cmc = matches[:, :max_rank].cumsum(1) # cumulative sum
-    all_cmc[all_cmc > 1] = 1
-    all_cmc = all_cmc.float().mean(0) * 100
-    # all_cmc = all_cmc[topk - 1]
-
-    if not get_mAP:
+        all_cmc = matches[:, :max_rank].cumsum(1) # cumulative sum
+        all_cmc[all_cmc > 1] = 1
+        all_cmc = all_cmc.float().mean(0) * 100
         return all_cmc, indices
 
-    num_rel = matches.sum(1)  # q
-    tmp_cmc = matches.cumsum(1)  # q * k
+    # get_mAP needs the full ranking (not just top-k), so `indices` is q * g.
+    # On large galleries (e.g. ICFG-PEDES: ~19.8k x 19.8k) that tensor alone is
+    # several GiB, and materializing it for every query at once can OOM on top
+    # of whatever training memory is still resident. Each query's ranking is
+    # independent of every other query's, so we can process queries in chunks
+    # and accumulate the running sums that feed the final means -- this is
+    # bit-for-bit the same aggregate formula as computing everything in one
+    # shot, just with a bounded memory footprint per step.
+    num_q = similarity.size(0)
+    cmc_sum = torch.zeros(max_rank)
+    ap_sum = 0.0
+    inp_sum = 0.0
+    indices_chunks = []
 
-    inp = [tmp_cmc[i][match_row.nonzero()[-1]] / (match_row.nonzero()[-1] + 1.) for i, match_row in enumerate(matches)]
-    mINP = torch.cat(inp).mean() * 100
+    for start in range(0, num_q, chunk_size):
+        end = min(start + chunk_size, num_q)
+        sim_chunk = similarity[start:end]
+        q_pids_chunk = q_pids[start:end]
 
-    tmp_cmc = [tmp_cmc[:, i] / (i + 1.0) for i in range(tmp_cmc.shape[1])]
-    tmp_cmc = torch.stack(tmp_cmc, 1) * matches
-    AP = tmp_cmc.sum(1) / num_rel  # q
-    mAP = AP.mean() * 100
+        indices_chunk = torch.argsort(sim_chunk, dim=1, descending=True)
+        pred_labels = g_pids[indices_chunk.cpu()]  # chunk * g
+        matches = pred_labels.eq(q_pids_chunk.view(-1, 1))  # chunk * g
+
+        chunk_cmc = matches[:, :max_rank].cumsum(1)
+        chunk_cmc[chunk_cmc > 1] = 1
+        cmc_sum += chunk_cmc.float().sum(0)
+
+        num_rel = matches.sum(1)  # chunk
+        tmp_cmc = matches.cumsum(1)  # chunk * g
+
+        inp = [tmp_cmc[i][match_row.nonzero()[-1]] / (match_row.nonzero()[-1] + 1.) for i, match_row in enumerate(matches)]
+        inp_sum += torch.cat(inp).sum().item()
+
+        tmp_cmc = [tmp_cmc[:, i] / (i + 1.0) for i in range(tmp_cmc.shape[1])]
+        tmp_cmc = torch.stack(tmp_cmc, 1) * matches
+        AP = tmp_cmc.sum(1) / num_rel  # chunk
+        ap_sum += AP.sum().item()
+
+        indices_chunks.append(indices_chunk.cpu())
+
+    all_cmc = (cmc_sum / num_q) * 100
+    mAP = torch.tensor(ap_sum / num_q * 100)
+    mINP = torch.tensor(inp_sum / num_q * 100)
+    indices = torch.cat(indices_chunks, dim=0)
 
     return all_cmc, mAP, mINP, indices
 
