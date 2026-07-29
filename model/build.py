@@ -148,6 +148,11 @@ class IRRA(nn.Module):
 
 def build_model(args, num_classes=11003):
     model = IRRA(args, num_classes)
-    # covert model to fp16
-    convert_weights(model)
+    if not getattr(args, 'amp', False):
+        # Keep the historical fp16-native behavior for non-AMP runs.
+        # Under --amp, torch.amp.autocast already casts ops to fp16 on the fly
+        # while GradScaler expects fp32 master weights/gradients; permanently
+        # casting weights here makes every gradient fp16 and GradScaler raises
+        # "Attempting to unscale FP16 gradients."
+        convert_weights(model)
     return model
