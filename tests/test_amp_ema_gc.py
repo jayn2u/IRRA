@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 import torch
 import torch.nn as nn
 
+import model.build as model_build
 from model.clip_model import Transformer
 from processor.processor import do_train
 from utils.ema import ModelEMA
@@ -69,6 +70,48 @@ class GradientCheckpointingTransformerTest(unittest.TestCase):
         # inference must take the plain nn.Sequential path instead.
         with torch.no_grad():
             checkpointed(torch.randn(4, 2, 8))
+
+
+class BuildModelAmpWeightDtypeTest(unittest.TestCase):
+    """GradScaler requires fp32 master weights/grads. convert_weights()
+    permanently casts weights to fp16, so it must be skipped under --amp or
+    scaler.step() raises "Attempting to unscale FP16 gradients." on the very
+    first optimizer step.
+    """
+
+    def _build(self, amp):
+        args = SimpleNamespace(
+            loss_names="sdm",
+            pretrain_choice="ViT-B/16",
+            img_size=(384, 128),
+            stride_size=16,
+            gradient_checkpointing=False,
+            temperature=0.02,
+            amp=amp,
+        )
+        fake_base_model = nn.Linear(4, 4)
+        with (
+            patch.object(
+                model_build,
+                "build_CLIP_from_openai_pretrained",
+                return_value=(fake_base_model, {"embed_dim": 4}),
+            ),
+            patch.object(
+                model_build, "convert_weights", wraps=model_build.convert_weights
+            ) as convert_mock,
+        ):
+            built = model_build.build_model(args, num_classes=10)
+        return built, convert_mock
+
+    def test_amp_enabled_skips_fp16_conversion(self):
+        built, convert_mock = self._build(amp=True)
+        convert_mock.assert_not_called()
+        self.assertTrue(all(p.dtype == torch.float32 for p in built.parameters()))
+
+    def test_amp_disabled_preserves_fp16_conversion(self):
+        built, convert_mock = self._build(amp=False)
+        convert_mock.assert_called_once_with(built)
+        self.assertTrue(any(p.dtype == torch.float16 for p in built.parameters()))
 
 
 class TinyReIDModel(nn.Module):
