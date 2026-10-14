@@ -24,6 +24,7 @@ def get_args():
     parser.add_argument("--gradient_checkpointing", default=False, action='store_true', help="use gradient checkpointing on the CLIP vision/text transformers and the cross-modal transformer to trade compute for VRAM")
     parser.add_argument("--ema", default=False, action='store_true', help="maintain an EMA copy of the model weights, evaluated instead of the raw weights")
     parser.add_argument("--ema_decay", type=float, default=0.999, help="EMA decay rate, only used when --ema is set")
+    parser.add_argument("--measure_vram_steps", type=int, default=0, help="run only this many training steps without evaluation and save peak CUDA memory to vram_measure.json")
 
     ######################## wandb settings ########################
     parser.add_argument("--wandb", default=False, action='store_true', help="log per-epoch train/validation metrics to Weights & Biases")
