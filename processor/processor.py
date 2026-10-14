@@ -6,6 +6,7 @@ from utils.meter import AverageMeter
 from utils.metrics import Evaluator
 from utils.comm import get_rank, get_world_size, synchronize
 from utils.ema import ModelEMA
+from utils.system_memory import SystemMemoryPoller
 import distutils.version
 from torch.utils.tensorboard import SummaryWriter
 from prettytable import PrettyTable
@@ -221,8 +222,12 @@ def do_measure_vram(args, model, train_loader, optimizer, wandb_session=None):
         ema_source = model.module if args.distributed else model
         ema = ModelEMA(ema_source, decay=getattr(args, 'ema_decay', 0.999))
     model.train()
+    gib = 1024.0 ** 3
+    checkpoint_steps = sorted({step for step in (100,) if step < steps} | {steps})
+    checkpoints = {}
     torch.cuda.synchronize(device)
     torch.cuda.reset_peak_memory_stats(device)
+    poller = SystemMemoryPoller().start()
     completed = 0
     while completed < steps:
         for batch in train_loader:
@@ -237,31 +242,42 @@ def do_measure_vram(args, model, train_loader, optimizer, wandb_session=None):
             if ema is not None:
                 ema.update(model.module if args.distributed else model)
             completed += 1
+            if completed in checkpoint_steps:
+                torch.cuda.synchronize(device)
+                checkpoint = {
+                    "max_memory_allocated_gib": torch.cuda.max_memory_allocated(device) / gib,
+                    "max_memory_reserved_gib": torch.cuda.max_memory_reserved(device) / gib,
+                    **(poller.stop() if completed == steps else poller.peaks()),
+                }
+                checkpoints[str(completed)] = checkpoint
+                wandb_session.log({
+                    "vram_measure/step": completed,
+                    **{f"vram_measure/{k}": v for k, v in checkpoint.items() if v is not None},
+                })
             if completed % int(args.log_period) == 0:
                 logger.info(f"vram measure step {completed}/{steps}, loss: {total_loss.item():.4f}")
             if completed >= steps:
                 break
-    torch.cuda.synchronize(device)
-    gib = 1024.0 ** 3
     report = {
         "config_name": args.name,
         "steps": completed,
-        "max_memory_allocated_gib": torch.cuda.max_memory_allocated(device) / gib,
-        "max_memory_reserved_gib": torch.cuda.max_memory_reserved(device) / gib,
+        **checkpoints[str(completed)],
         "amp": bool(amp_enabled),
         "ema": ema is not None,
         "gradient_checkpointing": bool(getattr(args, 'gradient_checkpointing', False)),
         "batch_size": int(args.batch_size),
+        "checkpoints": checkpoints,
     }
     path = os.path.join(args.output_dir, "vram_measure.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
     logger.info(f"vram measure: {json.dumps(report)} -> {path}")
     metrics = {
-        f"vram_measure/{key}": report[key]
-        for key in ("max_memory_allocated_gib", "max_memory_reserved_gib")
+        f"vram_measure/step{step}/{key}": value
+        for step, checkpoint in checkpoints.items()
+        for key, value in checkpoint.items()
+        if value is not None
     }
-    wandb_session.log(metrics)
     wandb_session.set_summary({**metrics, "vram_measure/steps": completed, "vram_measure/config_name": args.name})
     wandb_session.save(path, base_path=args.output_dir)
     return report
