@@ -3,6 +3,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from utils.system_memory import SystemMemoryPoller, nvidia_smi_command
@@ -52,6 +53,31 @@ class SystemMemoryPollerTest(unittest.TestCase):
             peaks,
             {"system_process_peak_gib": 3.0, "system_gpu_peak_gib": 16.0, "system_poll_samples": 3},
         )
+
+    def test_exception_inside_context_kills_children(self):
+        with tempfile.TemporaryDirectory() as out:
+            processes = []
+            with self.assertRaises(RuntimeError):
+                with SystemMemoryPoller(out, pid=42, gpu="0", command=emitter(["42, 1"], ["1"])) as poller:
+                    wait_for_rows(poller.process_path, 1)
+                    processes = list(poller._processes)
+                    raise RuntimeError("boom")
+            self.assertEqual(len(processes), 2)
+            self.assertTrue(all(process.poll() is not None for process in processes))
+            self.assertEqual(poller._processes, [])
+
+    def test_stop_is_idempotent_and_registered_with_atexit(self):
+        with tempfile.TemporaryDirectory() as out:
+            poller = SystemMemoryPoller(out, pid=42, gpu="0", command=emitter(["42, 1"], ["1"]))
+            with mock.patch("atexit.register") as register, mock.patch("atexit.unregister") as unregister:
+                poller.start()
+                register.assert_called_once_with(poller.stop)
+                wait_for_rows(poller.gpu_path, 1)
+                first = poller.stop()
+                second = poller.stop()
+                self.assertTrue(unregister.called)
+            self.assertEqual(first, second)
+            self.assertEqual(poller._processes, [])
 
     def test_handles_missing_process(self):
         with tempfile.TemporaryDirectory() as out:

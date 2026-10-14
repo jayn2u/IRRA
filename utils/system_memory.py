@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import os
 import shutil
 import subprocess
@@ -98,6 +99,7 @@ class SystemMemoryPoller:
         self._processes.append(process)
 
     def start(self) -> SystemMemoryPoller:
+        atexit.register(self.stop)
         if self.available:
             self._launch(PROCESS_QUERY, self.process_path)
             self._launch(GPU_QUERY, self.gpu_path)
@@ -123,7 +125,14 @@ class SystemMemoryPoller:
         }
 
     def stop(self) -> dict[str, float | int | None]:
+        atexit.unregister(self.stop)
         processes, self._processes = self._processes, []
         for process in processes:
             stop_process(process, self.stop_timeout_seconds)
         return self.peaks()
+
+    def __enter__(self) -> SystemMemoryPoller:
+        return self.start()
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.stop()

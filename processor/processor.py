@@ -227,37 +227,37 @@ def do_measure_vram(args, model, train_loader, optimizer, wandb_session=None):
     checkpoints = {}
     torch.cuda.synchronize(device)
     torch.cuda.reset_peak_memory_stats(device)
-    poller = SystemMemoryPoller(args.output_dir).start()
-    completed = 0
-    while completed < steps:
-        for batch in train_loader:
-            batch = {k: v.to(device) for k, v in batch.items()}
-            with torch.amp.autocast(device_type=device.type, enabled=amp_enabled):
-                ret = model(batch)
-                total_loss = sum([v for k, v in ret.items() if "loss" in k])
-            optimizer.zero_grad()
-            scaler.scale(total_loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            if ema is not None:
-                ema.update(model.module if args.distributed else model)
-            completed += 1
-            if completed in checkpoint_steps:
-                torch.cuda.synchronize(device)
-                checkpoint = {
-                    "max_memory_allocated_gib": torch.cuda.max_memory_allocated(device) / gib,
-                    "max_memory_reserved_gib": torch.cuda.max_memory_reserved(device) / gib,
-                    **(poller.stop() if completed == steps else poller.peaks()),
-                }
-                checkpoints[str(completed)] = checkpoint
-                wandb_session.log({
-                    "vram_measure/step": completed,
-                    **{f"vram_measure/{k}": v for k, v in checkpoint.items() if v is not None},
-                })
-            if completed % int(args.log_period) == 0:
-                logger.info(f"vram measure step {completed}/{steps}, loss: {total_loss.item():.4f}")
-            if completed >= steps:
-                break
+    with SystemMemoryPoller(args.output_dir) as poller:
+        completed = 0
+        while completed < steps:
+            for batch in train_loader:
+                batch = {k: v.to(device) for k, v in batch.items()}
+                with torch.amp.autocast(device_type=device.type, enabled=amp_enabled):
+                    ret = model(batch)
+                    total_loss = sum([v for k, v in ret.items() if "loss" in k])
+                optimizer.zero_grad()
+                scaler.scale(total_loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                if ema is not None:
+                    ema.update(model.module if args.distributed else model)
+                completed += 1
+                if completed in checkpoint_steps:
+                    torch.cuda.synchronize(device)
+                    checkpoint = {
+                        "max_memory_allocated_gib": torch.cuda.max_memory_allocated(device) / gib,
+                        "max_memory_reserved_gib": torch.cuda.max_memory_reserved(device) / gib,
+                        **(poller.stop() if completed == steps else poller.peaks()),
+                    }
+                    checkpoints[str(completed)] = checkpoint
+                    wandb_session.log({
+                        "vram_measure/step": completed,
+                        **{f"vram_measure/{k}": v for k, v in checkpoint.items() if v is not None},
+                    })
+                if completed % int(args.log_period) == 0:
+                    logger.info(f"vram measure step {completed}/{steps}, loss: {total_loss.item():.4f}")
+                if completed >= steps:
+                    break
     report = {
         "config_name": args.name,
         "steps": completed,
